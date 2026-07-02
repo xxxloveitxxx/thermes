@@ -28,7 +28,10 @@ services:
     #   sizeGB: 5
     dockerfilePath: ./Dockerfile
     autoDeployTrigger: off
+    # Health check path - Hermes gateway status endpoint
     healthCheckPath: /api/status
+    # Use port 10000 for Hermes dashboard
+    port: 10000
     envVars:
       # Dashboard side-process configuration
       - key: HERMES_DASHBOARD
@@ -39,6 +42,9 @@ services:
         value: "10000"
       - key: HERMES_DASHBOARD_TUI
         value: "1"
+      # Allow open access to gateway
+      - key: GATEWAY_ALLOW_ALL_USERS
+        value: "true"
 
       # Generated at first deploy. Reuse as API_SERVER_KEY if enabling the
       # OpenAI-compatible API server.

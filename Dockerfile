@@ -11,6 +11,17 @@
 ARG HERMES_IMAGE=docker.io/nousresearch/hermes-agent:v2026.5.7
 FROM ${HERMES_IMAGE}
 
+# Expose the dashboard port
+EXPOSE 10000
+
+# Environment variables for Render deployment
+ENV HERMES_DASHBOARD=1
+ENV HERMES_DASHBOARD_HOST=0.0.0.0
+ENV HERMES_DASHBOARD_PORT=10000
+ENV HERMES_DASHBOARD_TUI=1
+# Allow open access (change for production)
+ENV GATEWAY_ALLOW_ALL_USERS=true
+
 # Workarounds for upstream issues that prevent the dashboard's Chat tab
 # from connecting on hosted deploys.
 USER root
