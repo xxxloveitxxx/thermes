@@ -1,0 +1,56 @@
+# yaml-language-server: $schema=https://render.com/schema/render.yaml.json
+#
+# Hermes Agent on Render with Google AI Studio (Gemma 4 31B IT)
+# https://github.com/NousResearch/hermes-agent
+#
+# Single web service built from the local Dockerfile, which extends the
+# upstream Hermes image with Google AI Studio Gemma 4 31B IT support.
+#
+# IMPORTANT: Render Free Tier Limitations:
+# - Services spin down after 15 minutes of inactivity
+# - 750 free hours per month per account
+# - No persistent disk on free tier (uses ephemeral storage)
+# - Cold starts can take 30-60 seconds
+#
+# For persistent state, consider upgrading to a paid plan or use the
+# standard plan with a persistent disk.
+
+services:
+  - type: web
+    name: hermes-gemma
+    runtime: docker
+    region: oregon
+    # Free tier does not support persistent disks
+    # If you upgrade to standard plan, uncomment the disk section below:
+    # disk:
+    #   name: hermes-data
+    #   mountPath: /opt/data
+    #   sizeGB: 5
+    dockerfilePath: ./Dockerfile
+    autoDeployTrigger: off
+    healthCheckPath: /api/status
+    envVars:
+      # Dashboard side-process configuration
+      - key: HERMES_DASHBOARD
+        value: "1"
+      - key: HERMES_DASHBOARD_HOST
+        value: "0.0.0.0"
+      - key: HERMES_DASHBOARD_PORT
+        value: "10000"
+      - key: HERMES_DASHBOARD_TUI
+        value: "1"
+
+      # Generated at first deploy. Reuse as API_SERVER_KEY if enabling the
+      # OpenAI-compatible API server.
+      - key: HERMES_GATEWAY_TOKEN
+        generateValue: true
+
+      # Google AI Studio API Key - Set this in Render Dashboard or here
+      # Get your key at: https://aistudio.google.com/app/apikey
+      - key: GOOGLE_API_KEY
+        sync: false
+        # Replace with your actual API key or set via Render Dashboard
+
+      # Optional: Render MCP Server (uncomment if you want Render integration)
+      # - key: RENDER_MCP_API_KEY
+      #   sync: false

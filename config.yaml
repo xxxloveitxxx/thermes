@@ -1,0 +1,35 @@
+# Hermes Agent Configuration
+# Optimized for Google AI Studio (Gemma 4 31B IT) on Render Free Tier
+#
+# Copy this file to your Render persistent disk at /opt/data/config.yaml
+# or use the bootstrap script which auto-configures these settings.
+#
+# Model Configuration: Gemma 4 31B IT via Google AI Studio
+model:
+  default: gemini-4-31b-it
+  provider: gemini
+  # base_url: "" # Uses default Gemini API endpoint
+
+# Agent Configuration
+agent:
+  # Default agent to use
+  default: Claude
+    
+  # Memory configuration for persistent conversations
+  memory:
+    enabled: true
+    max_characters: 2200
+
+# Skills Configuration
+skills:
+  # Uncomment to enable external skill directories
+  # external_dirs:
+  #   - /opt/render-tools/skills-local
+  #   - /opt/render-tools/skills-upstream
+
+# Optional: Auxiliary providers for vision/web extraction
+# auxiliary:
+#   vision:
+#     provider: "gemini"
+#     model: "gemini-2.0-flash"
+#     timeout: 120

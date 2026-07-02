@@ -1,0 +1,54 @@
+# Environment and secrets
+.env
+.env.local
+.env.production
+*.pem
+*.key
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+
+# Node
+node_modules/
+npm-debug.log
+
+# Build
+dist/
+build/
+*.egg-info/
+
+# Docker
+.docker/
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+
+# Render specific
+/opt/data/
+/opt/render-tools/
+
+# Secrets (never commit)
+*secret*
+*credential*
+*.p12
+*.pfx

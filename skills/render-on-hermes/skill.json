@@ -1,0 +1,31 @@
+{
+  "name": "render-on-hermes",
+  "version": "1.0.0",
+  "description": "Render MCP server integration for Hermes Agent",
+  "author": "Render",
+  "license": "MIT",
+  "homepage": "https://render.com",
+  "install_dependencies": [],
+  "install_pip_packages": [],
+  "requires_external_tools": true,
+  "external_tools": [
+    {
+      "name": "Render MCP Server",
+      "description": "Access to Render account services, metrics, and logs via MCP protocol",
+      "setup_instructions": "Set RENDER_MCP_API_KEY in environment or /opt/data/.env"
+    }
+  ],
+  "config": {
+    "mcp_servers": {
+      "render": {
+        "url": "https://mcp.render.com/mcp",
+        "auth": "Bearer ${RENDER_MCP_API_KEY}"
+      }
+    }
+  },
+  "tags": ["render", "cloud", "deployment", "mcp"],
+  "compatibility": {
+    "hermes_version": ">=2026.1.0",
+    "render_plan": "any"
+  }
+}
