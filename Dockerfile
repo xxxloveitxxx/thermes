@@ -6,13 +6,14 @@
 #   - Google AI Studio / Gemini API integration via LiteLLM
 #   - Persistent disk support for state survival
 #   - Dashboard on port 10000
+#   - WebSocket messaging platform on port 10001
 #
 # Pin the upstream tag here. Bump and redeploy to upgrade Hermes.
 ARG HERMES_IMAGE=docker.io/nousresearch/hermes-agent:v2026.5.7
 FROM ${HERMES_IMAGE}
 
-# Expose the dashboard port
-EXPOSE 10000
+# Expose the dashboard port and WebSocket messaging port
+EXPOSE 10000 10001
 
 # Environment variables for SnapDeploy deployment
 ENV HERMES_DASHBOARD=1
@@ -28,7 +29,7 @@ USER root
 RUN chown -R hermes:hermes /opt/hermes/ui-tui /opt/hermes/node_modules \
  && mkdir -p /opt/hermes/ui-tui/packages/hermes-ink/dist /opt/hermes/ui-tui/dist \
  && touch /opt/hermes/ui-tui/packages/hermes-ink/dist/ink-bundle.js \
-          /opt/hermes/ui-tui/dist/entry.js \
+           /opt/hermes/ui-tui/dist/entry.js \
  && chown -R hermes:hermes /opt/hermes/ui-tui
 
 # Boot-time wrapper: patches config.yaml with Gemma model settings, then hands off
