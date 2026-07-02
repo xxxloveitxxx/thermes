@@ -1,20 +1,21 @@
-# Hermes Agent on Render with Google AI Studio (Gemma 4 31B IT)
+# Hermes Agent on SnapDeploy with Google AI Studio (Gemma 4 31B IT)
 
-Deploy the [Hermes Agent](https://github.com/NousResearch/hermes-agent) on Render's free tier with Google AI Studio API and the Gemma 4 31B IT model.
+Deploy the [Hermes Agent](https://github.com/NousResearch/hermes-agent) on SnapDeploy with Google AI Studio API and the Gemma 4 31B IT model.
 
 ## Features
 
-- 🚀 **One-click deployment** to Render
+- 🚀 **One-click deployment** to SnapDeploy
 - 🤖 **Gemma 4 31B IT** via Google AI Studio (Gemini API)
-- 💾 **Persistent storage** support (with paid plan) or ephemeral (free tier)
+- 💾 **Persistent storage** support
 - 🎛️ **Web Dashboard** with in-browser TUI chat
 - 🔧 **Extensible skills** system
 - 🔒 **Secure API key management**
+- ⚡ **No credit card required**
 
 ## Prerequisites
 
 1. **Google AI Studio Account**: https://aistudio.google.com/
-2. **Render Account**: https://render.com/
+2. **SnapDeploy Account**: https://snapdeploy.dev/
 3. **Google AI Studio API Key**: https://aistudio.google.com/app/apikey
 
 ## Quick Start
@@ -30,47 +31,32 @@ Fork this repository to your GitHub account.
 3. Create a new API key or use an existing one
 4. **Important**: Note your API key (you won't be able to see it again)
 
-### 3. Deploy to Render
+### 3. Deploy to SnapDeploy
 
-#### Option A: Deploy via Render Blueprint
-
-1. Log in to [Render Dashboard](https://dashboard.render.com/)
-2. Click "New" → "Blueprint"
+1. Log in to [SnapDeploy](https://snapdeploy.dev/)
+2. Click "New Service"
 3. Connect your GitHub account and select this repository
-4. Render will automatically detect `render.yaml`
-5. Add your environment variables:
-   - `GOOGLE_API_KEY`: Your Google AI Studio API key
-6. Click "Apply"
-
-#### Option B: Deploy Manually
-
-1. Log in to [Render Dashboard](https://dashboard.render.com/)
-2. Click "New" → "Web Service"
-3. Connect your GitHub repository
 4. Configure:
    - **Name**: `hermes-gemma`
-   - **Region**: Oregon (or closest to you)
+   - **Region**: Choose closest to you
    - **Runtime**: Docker
-   - **Dockerfile Path**: `Dockerfile`
-   - **Plan**: Free
 5. Add Environment Variables:
    - `HERMES_DASHBOARD`: `1`
    - `HERMES_DASHBOARD_HOST`: `0.0.0.0`
    - `HERMES_DASHBOARD_PORT`: `10000`
    - `HERMES_DASHBOARD_TUI`: `1`
-   - `HERMES_GATEWAY_TOKEN`: (Generate a secure random value)
+   - `GATEWAY_ALLOW_ALL_USERS`: `true`
    - `GOOGLE_API_KEY`: (Your Google AI Studio API key)
-6. Click "Create Web Service"
+6. Set Port: `10000`
+7. Click "Deploy"
 
 ### 4. Access the Dashboard
 
 After deployment completes:
 
-1. Click on your service in Render Dashboard
-2. Find the public URL (e.g., `https://hermes-gemma.onrender.com`)
-3. Open the URL in your browser
-4. Enter your `HERMES_GATEWAY_TOKEN` when prompted
-5. Start chatting with Hermes!
+1. Find your service URL in SnapDeploy
+2. Open the URL in your browser
+3. Start chatting with Hermes!
 
 ## Configuration
 
