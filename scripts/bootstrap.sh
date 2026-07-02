@@ -3,7 +3,7 @@
 #
 # Runs as root (PID-1 child of tini). On every boot it:
 #   1. Ensures /opt/data exists and is owned by hermes:hermes.
-#   2. Copies default config.yaml with Gemma model settings if not present.
+#   2. Regenerates config.yaml with Gemma model + WebSocket messaging enabled.
 #   3. Loads .env from /opt/data/.env if it exists.
 #   4. Exec's the upstream entrypoint chain.
 
@@ -19,10 +19,10 @@ if ! chown -R hermes:hermes "${DATA_DIR}" 2>/dev/null; then
   echo "[hermes-gemma] warning: could not chown ${DATA_DIR}; continuing" >&2
 fi
 
-# If no config.yaml exists, create one with Gemma 4 31B IT settings + WebSocket messaging
-if [ ! -f "${CONFIG_FILE}" ]; then
-  echo "[hermes-gemma] Creating default config.yaml with Gemma 4 31B IT settings..."
-  cat > "${CONFIG_FILE}" << 'HERMES_CONFIG'
+# Always regenerate config.yaml to ensure WebSocket messaging is enabled
+# This overwrites any stale config from previous deployments
+echo "[hermes-gemma] Regenerating config.yaml with Gemma 4 31B IT + WebSocket messaging..."
+cat > "${CONFIG_FILE}" << 'HERMES_CONFIG'
 # Hermes Agent Configuration
 # Model: Gemma 4 31B IT via Google AI Studio
 model:
@@ -36,16 +36,16 @@ agent:
     enabled: true
     max_characters: 2200
 
-# Enable WebSocket messaging platform for dashboard chat connectivity
+# WebSocket messaging platform for dashboard chat connectivity
+# This enables /api/ws, /api/events, /api/pty endpoints
 messaging_platforms:
   websocket:
     enabled: true
     host: 0.0.0.0
     port: 10001
 HERMES_CONFIG
-  chown hermes:hermes "${CONFIG_FILE}"
-  echo "[hermes-gemma] Config created at ${CONFIG_FILE}"
-fi
+chown hermes:hermes "${CONFIG_FILE}"
+echo "[hermes-gemma] Config regenerated at ${CONFIG_FILE}"
 
 # If no .env exists, create from example
 if [ ! -f "${ENV_FILE}" ]; then
