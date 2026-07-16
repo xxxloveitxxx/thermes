@@ -30,7 +30,7 @@ ENV GATEWAY_ALLOW_ALL_USERS=true
 USER root
 RUN apt-get update && apt-get install -y python3-pip --no-install-recommends \
  && apt-get clean && rm -rf /var/lib/apt/lists/* \
- && pip3 install --no-cache-dir jupyter jupyterlab ipywidgets
+ && pip3 install --no-cache-dir --break-system-packages jupyter jupyterlab ipywidgets
 
 # Workarounds for upstream issues that prevent the dashboard's Chat tab
 # from connecting on hosted deploys.
