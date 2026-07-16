@@ -57,63 +57,48 @@ def pull_files():
     if not sb:
         return
     
-    # List files in each subfolder
-    folders = ['notebooks', 'scripts', 'hermes']
+    folders = {'notebooks': NOTEBOOKS_DIR, 'scripts': SCRIPTS_DIR, 'hermes': HERMES_HOME}
     
     pulled = 0
-    for folder in folders:
-        print(f"\n  Checking {folder}/...")
+    for folder, local_dir in folders.items():
         try:
-            files = sb.storage.from_(BUCKET_NAME).list(options={"path": folder})
+            files = sb.storage.from_(BUCKET_NAME).list(
+                options={"search": folder}
+            )
             
             if not files:
-                print(f"    Empty or not found")
                 continue
             
             for file in files:
-                # Handle both dict and object formats
                 if isinstance(file, dict):
                     name = file.get('name', '')
-                    is_folder = file.get('id', '').endswith('/') if file.get('id') else False
                 else:
                     name = getattr(file, 'name', str(file))
-                    is_folder = getattr(file, 'id', '').endswith('/') if hasattr(file, 'id') and file.id else False
                 
-                if not name:
+                if not name or not name.startswith(f"{folder}/"):
                     continue
                 
-                # Skip folders
-                if name.endswith('/') or is_folder:
+                filename = name[len(folder) + 1:]
+                if not filename or '/' in filename:
                     continue
                 
-                # Skip empty folder placeholders
-                if name == '.emptyFolderPlaceholder':
+                if filename == '.emptyFolderPlaceholder':
                     continue
                 
-                # Full path in storage
-                full_name = f"{folder}/{name}"
-                
-                # Local destination
-                if folder == 'hermes':
-                    local_dir = HERMES_HOME
-                else:
-                    local_dir = os.path.join(WORKSPACE, folder)
-                local_path = os.path.join(local_dir, name)
-                
-                print(f"    Downloading {full_name}...")
-                os.makedirs(local_dir, exist_ok=True)
+                local_path = os.path.join(local_dir, filename)
                 
                 try:
-                    data = sb.storage.from_(BUCKET_NAME).download(full_name)
+                    data = sb.storage.from_(BUCKET_NAME).download(name)
+                    os.makedirs(local_dir, exist_ok=True)
                     with open(local_path, 'wb') as f:
                         f.write(data)
                     pulled += 1
-                    print(f"      ✓ Downloaded: {name}")
+                    print(f"  ✓ {filename}")
                 except Exception as e:
-                    print(f"      ✗ Error: {e}")
+                    print(f"  ✗ {filename}: {e}")
                     
         except Exception as e:
-            print(f"    Error listing {folder}: {e}")
+            print(f"  Error in {folder}: {e}")
     
     print(f"\n✓ Pulled {pulled} files")
 

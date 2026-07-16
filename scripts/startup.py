@@ -90,59 +90,52 @@ def pull_from_supabase(sb):
     """Download files from Supabase."""
     try:
         log("Pulling files from Supabase...")
-        files = sb.storage.from_(BUCKET_NAME).list()
         
-        log(f"  API returned: {files}")
-        
-        if not files:
-            log("No files in storage")
-            return
+        folders = {'notebooks': NOTEBOOKS_DIR, 'scripts': SCRIPTS_DIR, 'hermes': HERMES_HOME}
         
         pulled = 0
-        for file in files:
-            # Handle both dict and object formats
-            if isinstance(file, dict):
-                name = file.get('name', '')
-            else:
-                name = getattr(file, 'name', str(file))
-            
-            if not name:
-                continue
-            
-            # Skip folders
-            if name.endswith('/'):
-                continue
-            
-            log(f"  Processing: '{name}'")
-            
-            # Determine destination folder
-            if name.startswith('notebooks/'):
-                local_dir = NOTEBOOKS_DIR
-                filename = name.replace('notebooks/', '', 1)
-            elif name.startswith('scripts/'):
-                local_dir = SCRIPTS_DIR
-                filename = name.replace('scripts/', '', 1)
-            elif name.startswith('hermes/'):
-                local_dir = HERMES_HOME
-                filename = name.replace('hermes/', '', 1)
-            else:
-                log(f"    Skipped (no matching folder)")
-                continue
-            
-            if not filename:
-                continue
-                
-            local_path = os.path.join(local_dir, filename)
-            
+        for folder, local_dir in folders.items():
             try:
-                data = sb.storage.from_(BUCKET_NAME).download(name)
-                os.makedirs(local_dir, exist_ok=True)
-                with open(local_path, 'wb') as f:
-                    f.write(data)
-                pulled += 1
-                log(f"    ✓ Downloaded: {filename}")
+                # Use search to find files with this prefix
+                files = sb.storage.from_(BUCKET_NAME).list(
+                    options={"search": folder}
+                )
+                
+                if not files:
+                    continue
+                
+                for file in files:
+                    if isinstance(file, dict):
+                        name = file.get('name', '')
+                    else:
+                        name = getattr(file, 'name', str(file))
+                    
+                    if not name or not name.startswith(f"{folder}/"):
+                        continue
+                    
+                    # Get filename without folder prefix
+                    filename = name[len(folder) + 1:]
+                    if not filename or '/' in filename:
+                        continue
+                    
+                    # Skip placeholders
+                    if filename == '.emptyFolderPlaceholder':
+                        continue
+                    
+                    local_path = os.path.join(local_dir, filename)
+                    
+                    try:
+                        data = sb.storage.from_(BUCKET_NAME).download(name)
+                        os.makedirs(local_dir, exist_ok=True)
+                        with open(local_path, 'wb') as f:
+                            f.write(data)
+                        pulled += 1
+                        log(f"  ✓ {filename}")
+                    except Exception as e:
+                        log(f"  ✗ {filename}: {e}")
+                        
             except Exception as e:
-                log(f"    ✗ Error: {e}")
+                log(f"  Error in {folder}: {e}")
         
         log(f"✓ Pulled {pulled} files")
     except Exception as e:
