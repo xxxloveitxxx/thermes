@@ -63,26 +63,30 @@ def pull_files():
             print("No files in storage")
             return
         
+        pulled = 0
         for file in files:
             name = file.get('name', '')
             if not name:
                 continue
             
-            # Determine local path
-            if '/' in name:
-                folder, filename = name.split('/', 1)
-            else:
-                folder = ''
-                filename = name
-            
-            # Only process notebooks and scripts
-            if folder not in ['notebooks', 'scripts', 'hermes']:
+            # Skip folders
+            if name.endswith('/'):
                 continue
             
-            local_dir = os.path.join(WORKSPACE, folder) if folder != 'hermes' else HERMES_HOME
-            local_path = os.path.join(local_dir, filename) if folder != 'hermes' else os.path.join(HERMES_HOME, filename)
+            # Determine destination folder
+            if name.startswith('notebooks/'):
+                local_dir = os.path.join(WORKSPACE, 'notebooks')
+                filename = name.replace('notebooks/', '', 1)
+            elif name.startswith('scripts/'):
+                local_dir = os.path.join(WORKSPACE, 'scripts')
+                filename = name.replace('scripts/', '', 1)
+            elif name.startswith('hermes/'):
+                local_dir = HERMES_HOME
+                filename = name.replace('hermes/', '', 1)
+            else:
+                continue
             
-            if not filename or '.' not in filename:
+            if not filename:
                 continue
             
             print(f"  Downloading {name}...")
@@ -90,12 +94,14 @@ def pull_files():
             
             try:
                 data = sb.storage.from_(BUCKET_NAME).download(name)
+                local_path = os.path.join(local_dir, filename)
                 with open(local_path, 'wb') as f:
                     f.write(data)
+                pulled += 1
             except Exception as e:
                 print(f"    Error: {e}")
         
-        print("\n✓ Pull complete!")
+        print(f"\n✓ Pulled {pulled} files")
         
     except Exception as e:
         print(f"Error: {e}")

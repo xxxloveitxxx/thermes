@@ -92,17 +92,38 @@ def pull_from_supabase(sb):
         log("Pulling files from Supabase...")
         files = sb.storage.from_(BUCKET_NAME).list()
         
+        if not files:
+            log("No files in storage")
+            return
+            
         pulled = 0
         for file in files:
             name = file.get('name', '')
-            if not name or '/' not in name:
+            if not name:
                 continue
             
-            folder, filename = name.split('/', 1)
-            if folder not in ['notebooks', 'scripts', 'hermes'] or not filename:
+            # Skip folders
+            if name.endswith('/'):
                 continue
             
-            local_dir = os.path.join(WORKSPACE, folder) if folder != 'hermes' else HERMES_HOME
+            log(f"  Found: {name}")
+            
+            # Determine destination folder
+            if name.startswith('notebooks/'):
+                local_dir = NOTEBOOKS_DIR
+                filename = name.replace('notebooks/', '', 1)
+            elif name.startswith('scripts/'):
+                local_dir = SCRIPTS_DIR
+                filename = name.replace('scripts/', '', 1)
+            elif name.startswith('hermes/'):
+                local_dir = HERMES_HOME
+                filename = name.replace('hermes/', '', 1)
+            else:
+                continue  # Skip unknown files
+            
+            if not filename:
+                continue
+                
             local_path = os.path.join(local_dir, filename)
             
             try:
@@ -111,8 +132,9 @@ def pull_from_supabase(sb):
                 with open(local_path, 'wb') as f:
                     f.write(data)
                 pulled += 1
-            except:
-                pass
+                log(f"    Downloaded: {filename}")
+            except Exception as e:
+                log(f"    Error: {e}")
         
         log(f"✓ Pulled {pulled} files")
     except Exception as e:
