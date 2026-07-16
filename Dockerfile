@@ -28,7 +28,7 @@ ENV GATEWAY_ALLOW_ALL_USERS=true
 
 # Install Jupyter for notebook mode
 USER root
-RUN pip install jupyter jupyterlab ipywidgets --quiet
+RUN python3 -m pip install jupyter jupyterlab ipywidgets --quiet || pip3 install jupyter jupyterlab ipywidgets --quiet
 
 # Workarounds for upstream issues that prevent the dashboard's Chat tab
 # from connecting on hosted deploys.
