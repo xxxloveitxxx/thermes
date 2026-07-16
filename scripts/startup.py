@@ -107,18 +107,20 @@ def pull_from_supabase():
                 if name.endswith('/'):
                     continue
                 
-                # Extract filename after folder prefix
+                # Reconstruct full path if name doesn't include prefix
+                if not name.startswith(f'{folder}/'):
+                    full_path = f'{folder}/{name}'
+                else:
+                    full_path = name
+                
+                # Extract filename for local save
                 filename = name.split('/')[-1]
                 
                 if not filename or filename == '.emptyFolderPlaceholder':
                     continue
                 
-                # Skip nested paths (subfolders)
-                if '/' in name[len(folder)+1:]:
-                    continue
-                
-                # Download file
-                download_url = f"{SUPABASE_URL}/storage/v1/object/{BUCKET_NAME}/{name}"
+                # Download file using full path
+                download_url = f"{SUPABASE_URL}/storage/v1/object/{BUCKET_NAME}/{full_path}"
                 download_resp = requests.get(download_url, headers=headers)
                 
                 if download_resp.status_code == 200:

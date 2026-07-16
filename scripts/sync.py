@@ -102,30 +102,31 @@ def pull_files():
             continue
         
         for f in files:
+            # Get name - might include prefix or might not depending on Supabase version
             name = f.get('name', '')
             if not name:
                 continue
             
-            # Skip folders (names ending with /)
+            # Skip folders
             if name.endswith('/'):
-                print(f"    Skipping folder: {name}")
                 continue
             
-            # Extract filename after folder prefix
+            # Reconstruct full path if name doesn't start with folder prefix
+            if not name.startswith(f'{folder}/'):
+                full_path = f'{folder}/{name}'
+            else:
+                full_path = name
+            
+            # Extract filename for local save
             filename = name.split('/')[-1]
             
             if not filename or filename == '.emptyFolderPlaceholder':
                 continue
             
-            # Skip if it's actually a folder (no extension in path after last /)
-            if '/' in name[len(folder)+1:]:
-                print(f"    Skipping nested: {name}")
-                continue
-            
             local_path = os.path.join(local_dir, filename)
             
-            print(f"    Downloading {filename}...")
-            if download_file(name, local_path):
+            print(f"    Downloading {full_path} -> {filename}...")
+            if download_file(full_path, local_path):
                 pulled += 1
                 print(f"      ✓ Downloaded")
             else:
