@@ -57,63 +57,65 @@ def pull_files():
     if not sb:
         return
     
-    try:
-        files = sb.storage.from_(BUCKET_NAME).list()
-        print(f"  API returned: {files}")
-        
-        if not files:
-            print("No files in storage")
-            return
-        
-        pulled = 0
-        for file in files:
-            # Handle both dict and object formats
-            if isinstance(file, dict):
-                name = file.get('name', '')
-            else:
-                name = getattr(file, 'name', str(file))
+    # List files in each subfolder
+    folders = ['notebooks', 'scripts', 'hermes']
+    
+    pulled = 0
+    for folder in folders:
+        print(f"\n  Checking {folder}/...")
+        try:
+            files = sb.storage.from_(BUCKET_NAME).list(options={"path": folder})
             
-            if not name:
+            if not files:
+                print(f"    Empty or not found")
                 continue
             
-            # Skip folders
-            if name.endswith('/'):
-                continue
-            
-            # Determine destination folder
-            if name.startswith('notebooks/'):
-                local_dir = os.path.join(WORKSPACE, 'notebooks')
-                filename = name.replace('notebooks/', '', 1)
-            elif name.startswith('scripts/'):
-                local_dir = os.path.join(WORKSPACE, 'scripts')
-                filename = name.replace('scripts/', '', 1)
-            elif name.startswith('hermes/'):
-                local_dir = HERMES_HOME
-                filename = name.replace('hermes/', '', 1)
-            else:
-                print(f"  Skipped: {name}")
-                continue
-            
-            if not filename:
-                continue
-            
-            print(f"  Downloading {name}...")
-            os.makedirs(local_dir, exist_ok=True)
-            
-            try:
-                data = sb.storage.from_(BUCKET_NAME).download(name)
-                local_path = os.path.join(local_dir, filename)
-                with open(local_path, 'wb') as f:
-                    f.write(data)
-                pulled += 1
-                print(f"    ✓ Downloaded: {filename}")
-            except Exception as e:
-                print(f"    ✗ Error: {e}")
-        
-        print(f"\n✓ Pulled {pulled} files")
-        
-    except Exception as e:
-        print(f"Error: {e}")
+            for file in files:
+                # Handle both dict and object formats
+                if isinstance(file, dict):
+                    name = file.get('name', '')
+                    is_folder = file.get('id', '').endswith('/') if file.get('id') else False
+                else:
+                    name = getattr(file, 'name', str(file))
+                    is_folder = getattr(file, 'id', '').endswith('/') if hasattr(file, 'id') and file.id else False
+                
+                if not name:
+                    continue
+                
+                # Skip folders
+                if name.endswith('/') or is_folder:
+                    continue
+                
+                # Skip empty folder placeholders
+                if name == '.emptyFolderPlaceholder':
+                    continue
+                
+                # Full path in storage
+                full_name = f"{folder}/{name}"
+                
+                # Local destination
+                if folder == 'hermes':
+                    local_dir = HERMES_HOME
+                else:
+                    local_dir = os.path.join(WORKSPACE, folder)
+                local_path = os.path.join(local_dir, name)
+                
+                print(f"    Downloading {full_name}...")
+                os.makedirs(local_dir, exist_ok=True)
+                
+                try:
+                    data = sb.storage.from_(BUCKET_NAME).download(full_name)
+                    with open(local_path, 'wb') as f:
+                        f.write(data)
+                    pulled += 1
+                    print(f"      ✓ Downloaded: {name}")
+                except Exception as e:
+                    print(f"      ✗ Error: {e}")
+                    
+        except Exception as e:
+            print(f"    Error listing {folder}: {e}")
+    
+    print(f"\n✓ Pulled {pulled} files")
 
 
 def push_files():
