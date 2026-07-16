@@ -1,36 +1,29 @@
 # syntax=docker/dockerfile:1.7
 #
-# Jupyter Notebook Server with Persistent Storage
+# Jupyter Notebook Server with Git-Based Persistence
 #
-# Volume mounts for persistence:
-#   /data     - Notebooks, scripts, installed packages
-#   /root/.local - Python packages
-#
-# Install hermes-agent manually from Jupyter with:
-# !pip install git+https://github.com/NousResearch/hermes-agent.git
+# Notebooks sync to GitHub for persistence!
+# Set GIT_REPO_URL env var: https://TOKEN@github.com/user/repo.git
 #
 FROM python:3.11-slim
 
-# Create persistent directories
+# Create directories
 RUN mkdir -p /data/notebooks /data/scripts
 
 # Expose Jupyter port
 EXPOSE 8888
 
-# Install Jupyter
+# Install Jupyter and git
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    nodejs npm \
+    git curl \
  && pip install --no-cache-dir jupyter jupyterlab \
  && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Copy initial notebooks to persistent storage
+# Copy initial notebooks
 COPY notebooks/*.ipynb /data/notebooks/
-
-# Set environment for persistent package storage
-ENV PYTHONUSERBASE=/data/.local
 
 # Workdir
 WORKDIR /data
 
-# Default: start JupyterLab with persistent storage
-CMD ["jupyter", "lab", "--ip=0.0.0.0", "--port=8888", "--no-browser", "--allow-root", "--NotebookApp.notebook_dir=/data/notebooks"]
+# Default: start JupyterLab
+CMD ["jupyter", "lab", "--ip=0.0.0.0", "--port=8888", "--no-browser", "--allow-root"]
