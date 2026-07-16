@@ -37,10 +37,12 @@ def get_headers():
 
 
 def list_files(prefix=''):
-    """List files in bucket with optional prefix."""
+    """List files in bucket with prefix."""
     url = f"{SUPABASE_URL}/storage/v1/object/list/{BUCKET_NAME}"
-    params = {'prefix': prefix} if prefix else {}
-    resp = requests.post(url, headers=get_headers(), json=params)
+    payload = {'limit': 100}
+    if prefix:
+        payload['prefix'] = prefix
+    resp = requests.post(url, headers=get_headers(), json=payload)
     if resp.status_code == 200:
         return resp.json()
     else:
@@ -88,7 +90,8 @@ def pull_files():
     pulled = 0
     for folder, local_dir in folders.items():
         print(f"\n  Checking {folder}/...")
-        files = list_files(prefix=folder)
+        # Note: trailing slash required for folder listing!
+        files = list_files(prefix=f'{folder}/')
         
         if not files:
             print(f"    Empty")
@@ -99,12 +102,10 @@ def pull_files():
             if not name or name.endswith('/'):
                 continue
             
-            # Get filename without prefix
-            filename = name[len(folder) + 1:]
-            if '/' in filename:
-                continue
+            # Extract filename after folder prefix
+            filename = name.split('/')[-1]
             
-            if filename == '.emptyFolderPlaceholder':
+            if not filename or filename == '.emptyFolderPlaceholder':
                 continue
             
             local_path = os.path.join(local_dir, filename)

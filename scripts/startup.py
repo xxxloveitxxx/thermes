@@ -83,11 +83,15 @@ def pull_from_supabase():
         
         pulled = 0
         for folder, local_dir in folders.items():
-            # List files with prefix
+            # List files with prefix (trailing slash required!)
             url = f"{SUPABASE_URL}/storage/v1/object/list/{BUCKET_NAME}"
-            resp = requests.post(url, headers=headers, json={'prefix': folder})
+            resp = requests.post(url, headers=headers, json={
+                'prefix': f'{folder}/',
+                'limit': 100
+            })
             
             if resp.status_code != 200:
+                log(f"  List error: {resp.status_code}")
                 continue
             
             files = resp.json()
@@ -99,11 +103,10 @@ def pull_from_supabase():
                 if not name or name.endswith('/'):
                     continue
                 
-                filename = name[len(folder) + 1:]
-                if '/' in filename:
-                    continue
+                # Extract filename after folder prefix
+                filename = name.split('/')[-1]
                 
-                if filename == '.emptyFolderPlaceholder':
+                if not filename or filename == '.emptyFolderPlaceholder':
                     continue
                 
                 # Download file
@@ -116,6 +119,7 @@ def pull_from_supabase():
                     with open(local_path, 'wb') as out:
                         out.write(download_resp.content)
                     pulled += 1
+                    log(f"  ✓ {filename}")
         
         log(f"✓ Pulled {pulled} files")
     except Exception as e:
