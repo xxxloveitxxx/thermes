@@ -59,17 +59,31 @@ def install_hermes():
     
     log("Installing Hermes Agent...")
     try:
+        # Use pre-built package, not git+https (git install fails sometimes)
         subprocess.run([
             sys.executable, "-m", "pip", "install",
             "--break-system-packages",
-            "git+https://github.com/NousResearch/hermes-agent.git"
-        ], check=True, capture_output=True)
+            "hermes-agent"
+        ], check=True, capture_output=True, timeout=300)
         
         # Mark as installed
         Path(hermes_path).touch()
         log("✓ Hermes installed!")
     except Exception as e:
         log(f"Error installing Hermes: {e}")
+        # Try alternative install method
+        try:
+            log("Trying alternative install...")
+            subprocess.run([
+                sys.executable, "-m", "pip", "install",
+                "--break-system-packages",
+                "--no-cache-dir",
+                "hermes-agent"
+            ], check=True, capture_output=True, timeout=300)
+            Path(hermes_path).touch()
+            log("✓ Hermes installed (alternative)!")
+        except Exception as e2:
+            log(f"Alternative also failed: {e2}")
 
 
 def pull_from_supabase(sb):
