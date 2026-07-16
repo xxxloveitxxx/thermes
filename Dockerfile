@@ -26,9 +26,11 @@ ENV HERMES_DASHBOARD_TUI=1
 # Allow open access (change for production)
 ENV GATEWAY_ALLOW_ALL_USERS=true
 
-# Install Jupyter for notebook mode
+# Install pip and Jupyter for notebook mode
 USER root
-RUN python3 -m pip install jupyter jupyterlab ipywidgets --quiet || pip3 install jupyter jupyterlab ipywidgets --quiet
+RUN apt-get update && apt-get install -y python3-pip --no-install-recommends \
+ && apt-get clean && rm -rf /var/lib/apt/lists/* \
+ && pip3 install --no-cache-dir jupyter jupyterlab ipywidgets
 
 # Workarounds for upstream issues that prevent the dashboard's Chat tab
 # from connecting on hosted deploys.
