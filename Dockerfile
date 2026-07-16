@@ -1,9 +1,9 @@
 # syntax=docker/dockerfile:1.7
 #
-# Jupyter Notebook Server with Git-Based Persistence
+# Jupyter Notebook Server with Supabase Persistence
 #
-# Notebooks sync to GitHub for persistence!
-# Set GIT_REPO_URL env var: https://TOKEN@github.com/user/repo.git
+# Notebooks sync to Supabase Storage!
+# Set SUPABASE_URL and SUPABASE_KEY env vars
 #
 FROM python:3.11-slim
 
@@ -13,10 +13,10 @@ RUN mkdir -p /data/notebooks /data/scripts
 # Expose Jupyter port
 EXPOSE 8888
 
-# Install Jupyter and git
+# Install Jupyter and supabase
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    git curl \
- && pip install --no-cache-dir jupyter jupyterlab \
+    curl \
+ && pip install --no-cache-dir jupyter jupyterlab supabase \
  && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Copy initial notebooks

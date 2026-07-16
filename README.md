@@ -5,23 +5,25 @@ A simple JupyterLab server you can deploy anywhere. Install the [Hermes Agent](h
 ## Features
 
 - 🚀 **JupyterLab** - Full-featured notebook environment
-- 💾 **Git-Based Persistence** - Notebooks saved to GitHub
+- 💾 **Supabase Persistence** - Notebooks saved to Supabase Storage
 - 🔧 **Install Hermes** - Directly from Jupyter
 
 ## Deployment
 
 ### 1. Fork this Repository
 
-### 2. Create a GitHub Repo for Your Notebooks
+### 2. Create a Supabase Project
 
-Create a new **empty** private repo on GitHub (e.g., `my-jupyter-notebooks`).
+1. Go to [supabase.com](https://supabase.com) and sign up (free tier available)
+2. Create a new project
+3. Copy your **Project URL** and **anon public key** from Settings → API
 
-### 3. Generate a GitHub Token
+### 3. Create a Storage Bucket
 
-1. Go to GitHub → Settings → Developer settings → Personal access tokens
-2. Generate new token (classic)
-3. Select scope: `repo` (full control)
-4. Copy the token
+1. Go to **Storage** in your Supabase project
+2. Click **New bucket**
+3. Name it `notebooks`
+4. Make it **Public**
 
 ### 4. Deploy to Render
 
@@ -29,9 +31,9 @@ Create a new **empty** private repo on GitHub (e.g., `my-jupyter-notebooks`).
 2. Name: `jupyter-hermes`
 3. Port: `8888`
 4. Add Environment Variables:
-   - `GIT_REPO_URL`: `https://YOUR_TOKEN@github.com/YOUR_USERNAME/my-jupyter-notebooks.git`
-   - `GIT_NAME`: `Jupyter Hermes`
-   - `GIT_EMAIL`: `your@email.com`
+   - `SUPABASE_URL`: Your Supabase project URL
+   - `SUPABASE_KEY`: Your Supabase anon key
+   - `SUPABASE_BUCKET`: `notebooks` (or your bucket name)
 5. Deploy
 
 ### 5. Access JupyterLab
@@ -40,12 +42,12 @@ Create a new **empty** private repo on GitHub (e.g., `my-jupyter-notebooks`).
 2. Get token from Render logs
 3. Open `hermes.ipynb`
 
-## How Git Persistence Works
+## How Persistence Works
 
-1. First run: The notebook clones your GitHub repo into `/data/notebooks`
+1. First run: Notebooks start in `/data/notebooks`
 2. Work on notebooks as normal in JupyterLab
-3. Run the **Save & Sync** cell to push changes to GitHub
-4. On restart: Run **Pull Latest** to get your notebooks back
+3. Run the **Upload Notebooks** cell to save to Supabase
+4. On restart: Run **Download Notebooks** to get your work back
 
 ## Usage
 
@@ -74,11 +76,12 @@ print(response)
 | Step | Action |
 |------|--------|
 | 1 | Open hermes.ipynb |
-| 2 | Run first cell (Git setup) |
-| 3 | Install Hermes (one-time) |
-| 4 | Do your work |
-| 5 | Run **Save & Sync** cell to push to GitHub |
-| 6 | On restart: Run **Pull Latest**, then continue |
+| 2 | Run the Supabase setup cell |
+| 3 | Run **Download Notebooks** (pull from Supabase) |
+| 4 | Install Hermes (one-time) |
+| 5 | Do your work |
+| 6 | Run **Upload Notebooks** to save to Supabase |
+| 7 | On restart: Download again to continue |
 
 ## File Structure
 
