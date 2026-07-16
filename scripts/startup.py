@@ -92,13 +92,20 @@ def pull_from_supabase(sb):
         log("Pulling files from Supabase...")
         files = sb.storage.from_(BUCKET_NAME).list()
         
+        log(f"  API returned: {files}")
+        
         if not files:
             log("No files in storage")
             return
-            
+        
         pulled = 0
         for file in files:
-            name = file.get('name', '')
+            # Handle both dict and object formats
+            if isinstance(file, dict):
+                name = file.get('name', '')
+            else:
+                name = getattr(file, 'name', str(file))
+            
             if not name:
                 continue
             
@@ -106,7 +113,7 @@ def pull_from_supabase(sb):
             if name.endswith('/'):
                 continue
             
-            log(f"  Found: {name}")
+            log(f"  Processing: '{name}'")
             
             # Determine destination folder
             if name.startswith('notebooks/'):
@@ -119,7 +126,8 @@ def pull_from_supabase(sb):
                 local_dir = HERMES_HOME
                 filename = name.replace('hermes/', '', 1)
             else:
-                continue  # Skip unknown files
+                log(f"    Skipped (no matching folder)")
+                continue
             
             if not filename:
                 continue
@@ -132,9 +140,9 @@ def pull_from_supabase(sb):
                 with open(local_path, 'wb') as f:
                     f.write(data)
                 pulled += 1
-                log(f"    Downloaded: {filename}")
+                log(f"    ✓ Downloaded: {filename}")
             except Exception as e:
-                log(f"    Error: {e}")
+                log(f"    ✗ Error: {e}")
         
         log(f"✓ Pulled {pulled} files")
     except Exception as e:

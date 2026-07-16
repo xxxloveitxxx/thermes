@@ -59,13 +59,20 @@ def pull_files():
     
     try:
         files = sb.storage.from_(BUCKET_NAME).list()
+        print(f"  API returned: {files}")
+        
         if not files:
             print("No files in storage")
             return
         
         pulled = 0
         for file in files:
-            name = file.get('name', '')
+            # Handle both dict and object formats
+            if isinstance(file, dict):
+                name = file.get('name', '')
+            else:
+                name = getattr(file, 'name', str(file))
+            
             if not name:
                 continue
             
@@ -84,6 +91,7 @@ def pull_files():
                 local_dir = HERMES_HOME
                 filename = name.replace('hermes/', '', 1)
             else:
+                print(f"  Skipped: {name}")
                 continue
             
             if not filename:
@@ -98,8 +106,9 @@ def pull_files():
                 with open(local_path, 'wb') as f:
                     f.write(data)
                 pulled += 1
+                print(f"    ✓ Downloaded: {filename}")
             except Exception as e:
-                print(f"    Error: {e}")
+                print(f"    ✗ Error: {e}")
         
         print(f"\n✓ Pulled {pulled} files")
         
