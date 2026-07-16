@@ -41,24 +41,72 @@ Fork this repository to your GitHub account.
    - **Region**: Choose closest to you
    - **Runtime**: Docker
 5. Add Environment Variables:
-   - `HERMES_DASHBOARD`: `1`
+   - `HERMES_DASHBOARD`: `1` (use `0` for Jupyter mode)
    - `HERMES_DASHBOARD_HOST`: `0.0.0.0`
    - `HERMES_DASHBOARD_PORT`: `10000`
    - `HERMES_DASHBOARD_TUI`: `1`
    - `GATEWAY_ALLOW_ALL_USERS`: `true`
    - `GOOGLE_API_KEY`: (Your Google AI Studio API key)
-6. Set Port: `10000`
+6. Set Port: `10000` (or `8888` for Jupyter mode)
 7. Click "Deploy"
 
-### 4. Access the Dashboard
+### 4. Access Hermes
 
-After deployment completes:
-
+**Dashboard Mode (default):**
 1. Find your service URL in SnapDeploy
 2. Open the URL in your browser
 3. Start chatting with Hermes!
 
+**Jupyter Mode:**
+1. Set `HERMES_JUPYTER=1` instead of `HERMES_DASHBOARD=1`
+2. Set Port to `8888`
+3. Access JupyterLab at your service URL:8888
+4. Use the included `hermes.ipynb` notebook to interact with Hermes
+
 ## Configuration
+
+### Running Hermes in Jupyter (Alternative to Dashboard)
+
+Hermes can run inside JupyterLab instead of the web dashboard. This is useful when you want to:
+- Use Hermes programmatically in Python
+- Debug agent behavior step-by-step
+- Run the agent in a notebook environment
+
+#### Jupyter Mode Setup
+
+1. Set these environment variables instead of dashboard settings:
+   - `HERMES_JUPYTER=1` (enables Jupyter mode)
+   - `HERMES_DASHBOARD=0` (disables dashboard)
+   - `JUPYTER_TOKEN=your-secure-token` (optional, default is `hermes-jupyter-token`)
+   - `GOOGLE_API_KEY=your-api-key`
+
+2. Set the **Port** to `8888` in SnapDeploy
+
+3. After deployment, access JupyterLab at: `https://your-service.snapdeploy.dev:8888`
+
+4. Enter the token when prompted
+
+#### Included Notebooks
+
+| Notebook | Description |
+|----------|-------------|
+| `hermes.ipynb` | Main notebook with Hermes agent initialization and chat examples |
+
+#### Using Hermes in Jupyter
+
+```python
+from run_agent import AIAgent
+
+# Initialize with Gemini via Google AI Studio
+agent = AIAgent(
+    model="gemini-4-31b-it",
+    quiet_mode=True,
+)
+
+# Simple chat
+response = agent.chat("Hello!")
+print(response)
+```
 
 ### Model Settings
 
@@ -86,11 +134,13 @@ Google AI Studio offers various Gemma models:
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `GOOGLE_API_KEY` | Yes | Google AI Studio API key |
-| `HERMES_DASHBOARD` | No | Enable dashboard (default: 1) |
+| `HERMES_JUPYTER` | No | Enable Jupyter mode instead of dashboard (default: 0) |
+| `HERMES_DASHBOARD` | No | Enable dashboard (default: 1, set 0 for Jupyter mode) |
 | `HERMES_DASHBOARD_HOST` | No | Dashboard bind host (default: 0.0.0.0) |
 | `HERMES_DASHBOARD_PORT` | No | Dashboard port (default: 10000) |
 | `HERMES_DASHBOARD_TUI` | No | Enable TUI chat (default: 1) |
 | `HERMES_GATEWAY_TOKEN` | Yes | Gateway authentication token |
+| `JUPYTER_TOKEN` | No | Jupyter access token (default: hermes-jupyter-token) |
 
 ## Render Free Tier Limitations
 
@@ -120,6 +170,8 @@ hermes-render-gemma/
 ├── .env.example            # Environment variables template
 ├── README.md               # This file
 ├── .gitignore              # Git ignore rules
+├── notebooks/               # Jupyter notebooks for Jupyter mode
+│   └── hermes.ipynb        # Main notebook for Hermes agent
 └── scripts/
     └── bootstrap.sh        # Container startup script
     └── skills/
