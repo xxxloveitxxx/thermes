@@ -100,13 +100,21 @@ def pull_from_supabase():
             
             for f in files:
                 name = f.get('name', '')
-                if not name or name.endswith('/'):
+                if not name:
+                    continue
+                
+                # Skip folders
+                if name.endswith('/'):
                     continue
                 
                 # Extract filename after folder prefix
                 filename = name.split('/')[-1]
                 
                 if not filename or filename == '.emptyFolderPlaceholder':
+                    continue
+                
+                # Skip nested paths (subfolders)
+                if '/' in name[len(folder)+1:]:
                     continue
                 
                 # Download file
@@ -120,6 +128,8 @@ def pull_from_supabase():
                         out.write(download_resp.content)
                     pulled += 1
                     log(f"  ✓ {filename}")
+                else:
+                    log(f"  ✗ {filename}: {download_resp.status_code}")
         
         log(f"✓ Pulled {pulled} files")
     except Exception as e:

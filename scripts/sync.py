@@ -54,11 +54,15 @@ def download_file(remote_path, local_path):
     """Download a file."""
     url = f"{SUPABASE_URL}/storage/v1/object/{BUCKET_NAME}/{remote_path}"
     resp = requests.get(url, headers=get_headers())
+    print(f"      URL: {url}")
+    print(f"      Status: {resp.status_code}")
     if resp.status_code == 200:
         os.makedirs(os.path.dirname(local_path), exist_ok=True)
         with open(local_path, 'wb') as f:
             f.write(resp.content)
         return True
+    else:
+        print(f"      Error: {resp.text[:200]}")
     return False
 
 
@@ -99,13 +103,23 @@ def pull_files():
         
         for f in files:
             name = f.get('name', '')
-            if not name or name.endswith('/'):
+            if not name:
+                continue
+            
+            # Skip folders (names ending with /)
+            if name.endswith('/'):
+                print(f"    Skipping folder: {name}")
                 continue
             
             # Extract filename after folder prefix
             filename = name.split('/')[-1]
             
             if not filename or filename == '.emptyFolderPlaceholder':
+                continue
+            
+            # Skip if it's actually a folder (no extension in path after last /)
+            if '/' in name[len(folder)+1:]:
+                print(f"    Skipping nested: {name}")
                 continue
             
             local_path = os.path.join(local_dir, filename)
