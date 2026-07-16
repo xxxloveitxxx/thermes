@@ -12,7 +12,7 @@ It:
 import os
 import sys
 import subprocess
-import json
+import requests
 from pathlib import Path
 from datetime import datetime
 
@@ -38,17 +38,6 @@ def ensure_dirs():
     log(f"Directories ready")
 
 
-def install_supabase():
-    try:
-        from supabase import create_client
-        return create_client(SUPABASE_URL, SUPABASE_KEY)
-    except ImportError:
-        log("Installing supabase...")
-        subprocess.run([sys.executable, "-m", "pip", "install", "--break-system-packages", "supabase"], check=True)
-        from supabase import create_client
-        return create_client(SUPABASE_URL, SUPABASE_KEY)
-
-
 def install_hermes():
     """Install Hermes agent if not present."""
     hermes_path = os.path.join(HERMES_HOME, 'installed')
@@ -59,21 +48,17 @@ def install_hermes():
     
     log("Installing Hermes Agent...")
     try:
-        # Use pre-built package, not git+https (git install fails sometimes)
         subprocess.run([
             sys.executable, "-m", "pip", "install",
             "--break-system-packages",
             "hermes-agent"
         ], check=True, capture_output=True, timeout=300)
         
-        # Mark as installed
         Path(hermes_path).touch()
         log("✓ Hermes installed!")
     except Exception as e:
         log(f"Error installing Hermes: {e}")
-        # Try alternative install method
         try:
-            log("Trying alternative install...")
             subprocess.run([
                 sys.executable, "-m", "pip", "install",
                 "--break-system-packages",
@@ -81,61 +66,56 @@ def install_hermes():
                 "hermes-agent"
             ], check=True, capture_output=True, timeout=300)
             Path(hermes_path).touch()
-            log("✓ Hermes installed (alternative)!")
+            log("✓ Hermes installed (alt)!")
         except Exception as e2:
-            log(f"Alternative also failed: {e2}")
+            log(f"Alt install failed: {e2}")
 
 
-def pull_from_supabase(sb):
-    """Download files from Supabase."""
+def pull_from_supabase():
+    """Download files from Supabase using direct HTTP."""
     try:
-        log("Pulling files from Supabase...")
+        headers = {
+            'apikey': SUPABASE_KEY,
+            'Authorization': f'Bearer {SUPABASE_KEY}'
+        }
         
         folders = {'notebooks': NOTEBOOKS_DIR, 'scripts': SCRIPTS_DIR, 'hermes': HERMES_HOME}
         
         pulled = 0
         for folder, local_dir in folders.items():
-            try:
-                # Use search to find files with this prefix
-                files = sb.storage.from_(BUCKET_NAME).list(
-                    options={"search": folder}
-                )
-                
-                if not files:
+            # List files with prefix
+            url = f"{SUPABASE_URL}/storage/v1/object/list/{BUCKET_NAME}"
+            resp = requests.post(url, headers=headers, json={'prefix': folder})
+            
+            if resp.status_code != 200:
+                continue
+            
+            files = resp.json()
+            if not files:
+                continue
+            
+            for f in files:
+                name = f.get('name', '')
+                if not name or name.endswith('/'):
                     continue
                 
-                for file in files:
-                    if isinstance(file, dict):
-                        name = file.get('name', '')
-                    else:
-                        name = getattr(file, 'name', str(file))
-                    
-                    if not name or not name.startswith(f"{folder}/"):
-                        continue
-                    
-                    # Get filename without folder prefix
-                    filename = name[len(folder) + 1:]
-                    if not filename or '/' in filename:
-                        continue
-                    
-                    # Skip placeholders
-                    if filename == '.emptyFolderPlaceholder':
-                        continue
-                    
+                filename = name[len(folder) + 1:]
+                if '/' in filename:
+                    continue
+                
+                if filename == '.emptyFolderPlaceholder':
+                    continue
+                
+                # Download file
+                download_url = f"{SUPABASE_URL}/storage/v1/object/{BUCKET_NAME}/{name}"
+                download_resp = requests.get(download_url, headers=headers)
+                
+                if download_resp.status_code == 200:
                     local_path = os.path.join(local_dir, filename)
-                    
-                    try:
-                        data = sb.storage.from_(BUCKET_NAME).download(name)
-                        os.makedirs(local_dir, exist_ok=True)
-                        with open(local_path, 'wb') as f:
-                            f.write(data)
-                        pulled += 1
-                        log(f"  ✓ {filename}")
-                    except Exception as e:
-                        log(f"  ✗ {filename}: {e}")
-                        
-            except Exception as e:
-                log(f"  Error in {folder}: {e}")
+                    os.makedirs(local_dir, exist_ok=True)
+                    with open(local_path, 'wb') as out:
+                        out.write(download_resp.content)
+                    pulled += 1
         
         log(f"✓ Pulled {pulled} files")
     except Exception as e:
@@ -201,11 +181,7 @@ def main():
     
     # Pull from Supabase
     if SUPABASE_URL and SUPABASE_KEY:
-        try:
-            sb = install_supabase()
-            pull_from_supabase(sb)
-        except Exception as e:
-            log(f"Supabase error: {e}")
+        pull_from_supabase()
     
     # Install Hermes
     install_hermes()

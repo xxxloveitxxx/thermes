@@ -3,7 +3,7 @@
 Supabase Sync Script for Hermes on Jupyter
 
 This script syncs notebooks, scripts, and hermes config to/from Supabase.
-Run manually or set up auto-sync.
+Uses direct HTTP requests to Supabase Storage API.
 
 Usage:
     python sync.py pull    # Download from Supabase
@@ -14,14 +14,8 @@ Usage:
 import os
 import sys
 import subprocess
+import requests
 from pathlib import Path
-
-try:
-    from supabase import create_client
-except ImportError:
-    print("Installing supabase...")
-    subprocess.run([sys.executable, "-m", "pip", "install", "--break-system-packages", "supabase"], check=True)
-    from supabase import create_client
 
 # Supabase credentials
 SUPABASE_URL = os.environ.get('SUPABASE_URL', 'https://opdpexsytsaldlworztz.supabase.co')
@@ -35,11 +29,47 @@ SCRIPTS_DIR = os.path.join(WORKSPACE, 'scripts')
 HERMES_HOME = os.path.expanduser('~/.hermes')
 
 
-def get_supabase():
-    if not SUPABASE_URL or not SUPABASE_KEY:
-        print("⚠️  Set SUPABASE_URL and SUPABASE_KEY environment variables")
-        return None
-    return create_client(SUPABASE_URL, SUPABASE_KEY)
+def get_headers():
+    return {
+        'apikey': SUPABASE_KEY,
+        'Authorization': f'Bearer {SUPABASE_KEY}'
+    }
+
+
+def list_files(prefix=''):
+    """List files in bucket with optional prefix."""
+    url = f"{SUPABASE_URL}/storage/v1/object/list/{BUCKET_NAME}"
+    params = {'prefix': prefix} if prefix else {}
+    resp = requests.post(url, headers=get_headers(), json=params)
+    if resp.status_code == 200:
+        return resp.json()
+    else:
+        print(f"  List error: {resp.status_code} - {resp.text}")
+        return []
+
+
+def download_file(remote_path, local_path):
+    """Download a file."""
+    url = f"{SUPABASE_URL}/storage/v1/object/{BUCKET_NAME}/{remote_path}"
+    resp = requests.get(url, headers=get_headers())
+    if resp.status_code == 200:
+        os.makedirs(os.path.dirname(local_path), exist_ok=True)
+        with open(local_path, 'wb') as f:
+            f.write(resp.content)
+        return True
+    return False
+
+
+def upload_file(local_path, remote_path):
+    """Upload a file."""
+    url = f"{SUPABASE_URL}/storage/v1/object/{BUCKET_NAME}/{remote_path}"
+    with open(local_path, 'rb') as f:
+        resp = requests.post(url, headers=get_headers(), files={'file': f})
+    if resp.status_code in [200, 201]:
+        return True
+    # Try update
+    resp = requests.put(url, headers=get_headers(), files={'file': open(local_path, 'rb')})
+    return resp.status_code in [200, 201]
 
 
 def ensure_dirs():
@@ -53,52 +83,38 @@ def pull_files():
     """Download files from Supabase."""
     print("\n📥 Pulling files from Supabase...")
     
-    sb = get_supabase()
-    if not sb:
-        return
-    
     folders = {'notebooks': NOTEBOOKS_DIR, 'scripts': SCRIPTS_DIR, 'hermes': HERMES_HOME}
     
     pulled = 0
     for folder, local_dir in folders.items():
-        try:
-            files = sb.storage.from_(BUCKET_NAME).list(
-                options={"search": folder}
-            )
-            
-            if not files:
+        print(f"\n  Checking {folder}/...")
+        files = list_files(prefix=folder)
+        
+        if not files:
+            print(f"    Empty")
+            continue
+        
+        for f in files:
+            name = f.get('name', '')
+            if not name or name.endswith('/'):
                 continue
             
-            for file in files:
-                if isinstance(file, dict):
-                    name = file.get('name', '')
-                else:
-                    name = getattr(file, 'name', str(file))
-                
-                if not name or not name.startswith(f"{folder}/"):
-                    continue
-                
-                filename = name[len(folder) + 1:]
-                if not filename or '/' in filename:
-                    continue
-                
-                if filename == '.emptyFolderPlaceholder':
-                    continue
-                
-                local_path = os.path.join(local_dir, filename)
-                
-                try:
-                    data = sb.storage.from_(BUCKET_NAME).download(name)
-                    os.makedirs(local_dir, exist_ok=True)
-                    with open(local_path, 'wb') as f:
-                        f.write(data)
-                    pulled += 1
-                    print(f"  ✓ {filename}")
-                except Exception as e:
-                    print(f"  ✗ {filename}: {e}")
-                    
-        except Exception as e:
-            print(f"  Error in {folder}: {e}")
+            # Get filename without prefix
+            filename = name[len(folder) + 1:]
+            if '/' in filename:
+                continue
+            
+            if filename == '.emptyFolderPlaceholder':
+                continue
+            
+            local_path = os.path.join(local_dir, filename)
+            
+            print(f"    Downloading {filename}...")
+            if download_file(name, local_path):
+                pulled += 1
+                print(f"      ✓ Downloaded")
+            else:
+                print(f"      ✗ Failed")
     
     print(f"\n✓ Pulled {pulled} files")
 
@@ -106,10 +122,6 @@ def pull_files():
 def push_files():
     """Upload files to Supabase."""
     print("\n📤 Pushing files to Supabase...")
-    
-    sb = get_supabase()
-    if not sb:
-        return
     
     def upload_folder(local_dir, remote_folder, extensions):
         """Upload all files from a folder."""
@@ -128,26 +140,11 @@ def push_files():
                 remote_name = f"{remote_folder}/{rel_path}"
                 
                 print(f"  Uploading {remote_name}...")
-                
-                try:
-                    with open(local_path, 'rb') as f:
-                        content = f.read()
-                    sb.storage.from_(BUCKET_NAME).upload(
-                        remote_name, content,
-                        {"contentType": "application/octet-stream"}
-                    )
+                if upload_file(local_path, remote_name):
                     uploaded += 1
-                except Exception as e:
-                    try:
-                        with open(local_path, 'rb') as f:
-                            content = f.read()
-                        sb.storage.from_(BUCKET_NAME).update(
-                            remote_name, content,
-                            {"contentType": "application/octet-stream"}
-                        )
-                        uploaded += 1
-                    except Exception as e2:
-                        print(f"    Error: {e2}")
+                    print(f"    ✓ Done")
+                else:
+                    print(f"    ✗ Failed")
         
         return uploaded
     
