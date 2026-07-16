@@ -13,13 +13,9 @@ EXPOSE 8888
 # Install Jupyter
 RUN apt-get update && apt-get install -y --no-install-recommends \
     nodejs npm \
- && npm install -g ijavascript \
  && pip install --no-cache-dir jupyter jupyterlab \
  && jupyter nbextension enable --py widgetsnbextension \
  && apt-get clean && rm -rf /var/lib/apt/lists/*
-
-# Install IRkernel for R support (optional)
-RUN pip install --no-cache-dir irkernel
 
 # Copy notebooks
 WORKDIR /workspace
