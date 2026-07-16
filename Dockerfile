@@ -14,7 +14,6 @@ EXPOSE 8888
 RUN apt-get update && apt-get install -y --no-install-recommends \
     nodejs npm \
  && pip install --no-cache-dir jupyter jupyterlab \
- && jupyter nbextension enable --py widgetsnbextension \
  && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Copy notebooks
