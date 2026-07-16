@@ -1,69 +1,68 @@
-# Jupyter Notebook Server with Hermes Agent
+# Jupyter + Hermes Agent with Auto-Sync
 
-A simple JupyterLab server you can deploy anywhere. Install the [Hermes Agent](https://github.com/NousResearch/hermes-agent) directly from Jupyter.
+JupyterLab that auto-syncs notebooks, scripts, and Hermes config to Supabase.
 
 ## Features
 
-- 🚀 **JupyterLab** - Full-featured notebook environment
-- 💾 **Supabase Persistence** - Notebooks saved to Supabase Storage
-- 🔧 **Install Hermes** - Directly from Jupyter
+- 🚀 **JupyterLab** - Full notebook environment
+- 💾 **Auto-Sync** - Files sync to Supabase automatically
+- 🤖 **Hermes** - Auto-installed and configured
+- 📁 **Two folders**: `notebooks/` and `scripts/`
 
-## Deployment
+## Setup
 
-### 1. Fork this Repository
+### 1. Create Supabase Bucket
 
-### 2. Create a Supabase Project
+1. Go to [supabase.com](https://supabase.com) → Your project → Storage
+2. Create bucket named `manini` (or your choice)
+3. Add RLS policies (run in SQL Editor):
 
-1. Go to [supabase.com](https://supabase.com) and sign up (free tier available)
-2. Create a new project
-3. Copy your **Project URL** and **anon public key** from Settings → API
-
-### 3. Create a Storage Bucket
-
-1. Go to **Storage** in your Supabase project
-2. Click **New bucket**
-3. Name it `notebooks`
-4. Make it **Public**
-
-### 4. Deploy to Render
-
-1. New Service → Connect GitHub → Select this repo
-2. Name: `jupyter-hermes`
-3. Port: `8888`
-4. Add Environment Variables:
-   - `SUPABASE_URL`: Your Supabase project URL
-   - `SUPABASE_KEY`: Your Supabase anon key
-   - `SUPABASE_BUCKET`: `notebooks` (or your bucket name)
-5. Deploy
-
-### 5. Access JupyterLab
-
-1. Open `http://your-service:8888`
-2. Get token from Render logs
-3. Open `hermes.ipynb`
-
-## How Persistence Works
-
-1. First run: Notebooks start in `/data/notebooks`
-2. Work on notebooks as normal in JupyterLab
-3. Run the **Upload Notebooks** cell to save to Supabase
-4. On restart: Run **Download Notebooks** to get your work back
-
-## Usage
-
-### Install Hermes Agent
-
-```python
-!pip install --break-system-packages git+https://github.com/NousResearch/hermes-agent.git
+```sql
+CREATE POLICY "public_select" ON storage.objects FOR SELECT TO PUBLIC USING (bucket_id = 'manini');
+CREATE POLICY "public_insert" ON storage.objects FOR INSERT TO PUBLIC WITH CHECK (bucket_id = 'manini');
+CREATE POLICY "public_update" ON storage.objects FOR UPDATE TO PUBLIC USING (bucket_id = 'manini') WITH CHECK (bucket_id = 'manini');
 ```
 
-### Use Hermes
+### 2. Deploy
+
+Environment Variables:
+```
+SUPABASE_URL=https://xxxx.supabase.co
+SUPABASE_KEY=your_anon_key
+SUPABASE_BUCKET=manini
+```
+
+### 3. That's It!
+
+When you open a notebook, it automatically:
+- Pulls files from Supabase
+- Installs Hermes if needed
+- Sets up auto-save
+
+## Manual Sync
+
+In a notebook cell:
+```python
+!python /workspace/scripts/sync.py push   # Upload to Supabase
+!python /workspace/scripts/sync.py pull   # Download from Supabase
+```
+
+## File Structure
+
+```
+/workspace/
+├── notebooks/      # Your .ipynb files (auto-synced)
+├── scripts/        # Python scripts (auto-synced)
+└── ~/.hermes/     # Hermes config & memory (auto-synced)
+```
+
+## Hermes Usage
 
 ```python
 from run_agent import AIAgent
 
 agent = AIAgent(
-    model="openai/gpt-4o",  # or your preferred model
+    model="openai/gpt-4o",
     quiet_mode=True,
 )
 
@@ -71,27 +70,6 @@ response = agent.chat("Hello!")
 print(response)
 ```
 
-## Workflow
-
-| Step | Action |
-|------|--------|
-| 1 | Open hermes.ipynb |
-| 2 | Run the Supabase setup cell |
-| 3 | Run **Download Notebooks** (pull from Supabase) |
-| 4 | Install Hermes (one-time) |
-| 5 | Do your work |
-| 6 | Run **Upload Notebooks** to save to Supabase |
-| 7 | On restart: Download again to continue |
-
-## File Structure
-
-```
-├── Dockerfile              # Docker image
-├── notebooks/
-│   └── hermes.ipynb       # Getting started notebook
-└── README.md
-```
-
 ## License
 
-MIT - See [Hermes Agent](https://github.com/NousResearch/hermes-agent)
+MIT
