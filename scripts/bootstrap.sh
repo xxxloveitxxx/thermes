@@ -1,5 +1,4 @@
 #!/bin/sh
-# This script is not needed for Jupyter-only mode.
-# Keeping it for reference.
-echo "Running Jupyter Notebook Server"
-exec "$@"
+# Runs the robust Python-based bootstrap process with signal handling and background sync
+echo "Running Jupyter Notebook Server and Hermes Startup..."
+exec python3 /workspace/scripts/bootstrap.py
