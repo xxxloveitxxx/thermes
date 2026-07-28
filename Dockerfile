@@ -17,9 +17,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
  && pip install --no-cache-dir jupyter jupyterlab supabase \
  && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Copy scripts
-COPY scripts/*.py /workspace/scripts/
-RUN chmod +x /workspace/scripts/*.py
+# Copy scripts and bootstrap wrapper
+COPY scripts/* /workspace/scripts/
+RUN chmod +x /workspace/scripts/*
 
 # Setup IPython startup (auto-runs on kernel start)
 RUN mkdir -p /root/.ipython/profile_default/startup && \
@@ -28,5 +28,5 @@ RUN mkdir -p /root/.ipython/profile_default/startup && \
 # Set workdir
 WORKDIR /workspace
 
-# Default: start JupyterLab
-CMD ["jupyter", "lab", "--ip=0.0.0.0", "--port=8888", "--no-browser", "--allow-root", "--notebook-dir=/workspace"]
+# Start with the robust bootstrap process (handles setup, auto-save, and shutdown signals)
+CMD ["python", "/workspace/scripts/bootstrap.py"]
