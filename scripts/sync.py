@@ -16,12 +16,30 @@ import sys
 import subprocess
 import requests
 import shutil
+import logging
 from pathlib import Path
 
+# Setup logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - SYNC - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
 # Supabase credentials
-SUPABASE_URL = os.environ.get('SUPABASE_URL', 'https://opdpexsytsaldlworztz.supabase.co')
+SUPABASE_URL = os.environ.get('SUPABASE_URL', '')
 SUPABASE_KEY = os.environ.get('SUPABASE_KEY', '')
 BUCKET_NAME = os.environ.get('SUPABASE_BUCKET', 'manini')
+
+# Validate required credentials
+def validate_credentials():
+    if not SUPABASE_URL:
+        logger.error("❌ SUPABASE_URL is not set!")
+        return False
+    if not SUPABASE_KEY:
+        logger.error("❌ SUPABASE_KEY is not set!")
+        return False
+    return True
 
 # Local paths
 if os.path.exists('/workspace') and os.access('/workspace', os.W_OK):
@@ -51,9 +69,9 @@ def sync_config_local_to_hermes():
         os.makedirs(os.path.dirname(hermes_config), exist_ok=True)
         try:
             shutil.copy2(workspace_config, hermes_config)
-            print(f"  ✓ Synchronized {workspace_config} -> {hermes_config}")
+            logger.info(f"  ✓ Synchronized {workspace_config} -> {hermes_config}")
         except Exception as e:
-            print(f"  ✗ Failed to copy config to hermes: {e}")
+            logger.error(f"  ✗ Failed to copy config to hermes: {e}")
 
 
 def sync_config_hermes_to_local():
@@ -64,13 +82,17 @@ def sync_config_hermes_to_local():
         os.makedirs(os.path.dirname(workspace_config), exist_ok=True)
         try:
             shutil.copy2(hermes_config, workspace_config)
-            print(f"  ✓ Synchronized {hermes_config} -> {workspace_config}")
+            logger.info(f"  ✓ Synchronized {hermes_config} -> {workspace_config}")
         except Exception as e:
-            print(f"  ✗ Failed to copy config to workspace: {e}")
+            logger.error(f"  ✗ Failed to copy config to workspace: {e}")
 
 
 def download_file(remote_path, local_path):
     """Download a file from Supabase Storage."""
+    if not validate_credentials():
+        logger.error("Cannot download - credentials not configured")
+        return False
+        
     url = f"{SUPABASE_URL}/storage/v1/object/{BUCKET_NAME}/{remote_path}"
     try:
         resp = requests.get(url, headers=get_headers(), timeout=30)
@@ -78,33 +100,50 @@ def download_file(remote_path, local_path):
             os.makedirs(os.path.dirname(local_path), exist_ok=True)
             with open(local_path, 'wb') as f:
                 f.write(resp.content)
+            logger.info(f"      ✓ Downloaded {remote_path}")
             return True
         else:
-            print(f"      Download error: {resp.status_code} - {resp.text[:200]}")
+            logger.error(f"      Download error: {resp.status_code} - {resp.text[:200]}")
+    except requests.exceptions.ConnectionError as e:
+        logger.error(f"      Connection error downloading {remote_path}: {e}")
     except Exception as e:
-        print(f"      Download exception: {e}")
+        logger.error(f"      Download exception: {e}")
     return False
 
 
 def upload_file(local_path, remote_path):
     """Upload a file to Supabase Storage."""
+    if not validate_credentials():
+        logger.error("Cannot upload - credentials not configured")
+        return False
+        
     url = f"{SUPABASE_URL}/storage/v1/object/{BUCKET_NAME}/{remote_path}"
     try:
         with open(local_path, 'rb') as f:
             resp = requests.post(url, headers=get_headers(), files={'file': f}, timeout=30)
         if resp.status_code in [200, 201]:
+            logger.info(f"      ✓ Uploaded {remote_path}")
             return True
         # Try update if already exists
         with open(local_path, 'rb') as f:
             resp = requests.put(url, headers=get_headers(), files={'file': f}, timeout=30)
-        return resp.status_code in [200, 201]
+        if resp.status_code in [200, 201]:
+            logger.info(f"      ✓ Updated {remote_path}")
+            return True
+        logger.error(f"      Upload failed: {resp.status_code} - {resp.text[:200]}")
+    except requests.exceptions.ConnectionError as e:
+        logger.error(f"      Connection error uploading {remote_path}: {e}")
     except Exception as e:
-        print(f"      Upload exception: {e}")
+        logger.error(f"      Upload exception: {e}")
     return False
 
 
 def list_files_recursive(prefix=''):
     """List all files in the Supabase bucket recursively under the given prefix."""
+    if not validate_credentials():
+        logger.error("Cannot list files - credentials not configured")
+        return []
+        
     files_list = []
     prefixes_to_check = [prefix]
     checked_prefixes = set()
@@ -127,7 +166,7 @@ def list_files_recursive(prefix=''):
         try:
             resp = requests.post(url, headers=headers, json=payload, timeout=20)
             if resp.status_code != 200:
-                print(f"  List error for prefix '{current_prefix}': {resp.status_code}")
+                logger.error(f"  List error for prefix '{current_prefix}': {resp.status_code}")
                 continue
 
             items = resp.json()
@@ -156,8 +195,10 @@ def list_files_recursive(prefix=''):
                         'full_path': full_path,
                         'id': item.get('id')
                     })
+        except requests.exceptions.ConnectionError as e:
+            logger.error(f"  Connection error listing prefix '{current_prefix}': {e}")
         except Exception as e:
-            print(f"  Exception listing prefix '{current_prefix}': {e}")
+            logger.error(f"  Exception listing prefix '{current_prefix}': {e}")
 
     return files_list
 
@@ -170,18 +211,18 @@ def ensure_dirs():
 
 def pull_files():
     """Download files from Supabase."""
-    print("\n📥 Pulling files from Supabase...")
+    logger.info("📥 Pulling files from Supabase...")
     ensure_dirs()
     
     folders = {'notebooks': NOTEBOOKS_DIR, 'scripts': SCRIPTS_DIR, 'hermes': HERMES_HOME}
     pulled = 0
 
     for folder, local_dir in folders.items():
-        print(f"\n  Checking remote {folder}/ recursively...")
+        logger.info(f"  Checking remote {folder}/ recursively...")
         files = list_files_recursive(prefix=f'{folder}/')
         
         if not files:
-            print(f"    No files found")
+            logger.info(f"    No files found")
             continue
         
         for f in files:
@@ -200,22 +241,19 @@ def pull_files():
 
             local_path = os.path.join(local_dir, rel_path)
             
-            print(f"    Downloading {full_path} -> {local_path}...")
+            logger.info(f"    Downloading {full_path} -> {local_path}")
             if download_file(full_path, local_path):
                 pulled += 1
-                print(f"      ✓ Downloaded")
-            else:
-                print(f"      ✗ Failed")
 
     # Copy configuration file from hermes directory back to workspace
     sync_config_hermes_to_local()
     
-    print(f"\n✓ Pull complete! Total files: {pulled}")
+    logger.info(f"✓ Pull complete! Total files: {pulled}")
 
 
 def push_files():
     """Upload files to Supabase."""
-    print("\n📤 Pushing files to Supabase...")
+    logger.info("📤 Pushing files to Supabase...")
     ensure_dirs()
     
     # Sync workspace config to hermes home before uploading so it gets backed up
@@ -224,7 +262,7 @@ def push_files():
     def upload_folder(local_dir, remote_folder, extensions=None):
         """Upload all files from a folder recursively."""
         if not os.path.exists(local_dir):
-            print(f"  {local_dir} does not exist")
+            logger.warning(f"  {local_dir} does not exist")
             return 0
         
         uploaded = 0
@@ -239,32 +277,35 @@ def push_files():
                 rel_path = os.path.relpath(local_path, local_dir)
                 remote_name = f"{remote_folder}/{rel_path}"
                 
-                print(f"  Uploading {remote_name}...")
                 if upload_file(local_path, remote_name):
                     uploaded += 1
-                    print(f"    ✓ Done")
-                else:
-                    print(f"    ✗ Failed")
         
         return uploaded
     
     # Upload notebooks & scripts completely
     n = upload_folder(NOTEBOOKS_DIR, 'notebooks')
-    print(f"  Uploaded {n} files from notebooks/")
+    logger.info(f"  Uploaded {n} files from notebooks/")
 
     s = upload_folder(SCRIPTS_DIR, 'scripts')
-    print(f"  Uploaded {s} files from scripts/")
+    logger.info(f"  Uploaded {s} files from scripts/")
     
     # Upload hermes config & state databases with specific important extensions
     # This prevents uploading massive audio/image cache folders, while saving all configurations/states/memories.
     hermes_extensions = ['.yaml', '.yml', '.json', '.md', '.txt', '.db', '.sqlite', '.env', '.update_check']
     h = upload_folder(HERMES_HOME, 'hermes', hermes_extensions)
-    print(f"  Uploaded {h} files from ~/.hermes/")
+    logger.info(f"  Uploaded {h} files from ~/.hermes/")
     
-    print("\n✓ Push complete!")
+    logger.info("✓ Push complete!")
 
 
 def main():
+    logger.info("=== Supabase Sync Starting ===")
+    
+    if not validate_credentials():
+        logger.error("Sync aborted: Missing Supabase credentials!")
+        logger.error("Please set SUPABASE_URL and SUPABASE_KEY environment variables")
+        sys.exit(1)
+    
     if len(sys.argv) > 1:
         cmd = sys.argv[1].lower()
         if cmd == 'pull':
@@ -275,10 +316,10 @@ def main():
             pull_files()
             push_files()
         else:
-            print(f"Unknown command: {cmd}")
-            print("Usage: python sync.py [pull|push|all]")
+            logger.error(f"Unknown command: {cmd}")
+            logger.error("Usage: python sync.py [pull|push|all]")
     else:
-        print("Usage: python sync.py [pull|push|all]")
+        logger.info("Usage: python sync.py [pull|push|all]")
 
 
 if __name__ == '__main__':

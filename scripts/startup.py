@@ -6,13 +6,15 @@ This runs automatically when you start a new notebook kernel or boot the contain
 It:
 1. Pulls files from Supabase (restores notebooks, scripts, config, and hermes state)
 2. Installs Hermes if not present
-3. Sets up IPython auto-save post-cell-execute hook
+3. Sets up aggressive auto-save (every 30 seconds + after each cell)
 """
 
 import os
 import sys
 import subprocess
 import shutil
+import threading
+import time
 from pathlib import Path
 
 # Paths
@@ -26,6 +28,8 @@ else:
 NOTEBOOKS_DIR = os.path.join(WORKSPACE, 'notebooks')
 SCRIPTS_DIR = os.path.join(WORKSPACE, 'scripts')
 HERMES_HOME = os.path.expanduser('~/.hermes')
+LAST_SAVE_FILE = '/tmp/last_save_time'
+SAVE_LOCK_FILE = '/tmp/save_in_progress'
 
 
 def log(msg):
@@ -67,15 +71,80 @@ def install_hermes():
 
 
 def pull_from_supabase():
-    """Download files from Supabase using direct sync helper."""
-    log("Pulling latest files and session state from Supabase...")
+    """Download files from Supabase - ALWAYS runs on startup."""
+    log("📥 Pulling files from Supabase...")
     try:
         sys.path.insert(0, SCRIPTS_DIR)
         import sync
         sync.pull_files()
-        log("✓ Sync/pull completed.")
+        log("✓ Files restored from Supabase.")
     except Exception as e:
         log(f"Pull error: {e}")
+
+
+def do_save():
+    """Perform the actual save to Supabase."""
+    # Prevent overlapping saves
+    if os.path.exists(SAVE_LOCK_FILE):
+        return False
+        
+    try:
+        # Create lock
+        Path(SAVE_LOCK_FILE).touch()
+        
+        result = subprocess.run(
+            [sys.executable, os.path.join(SCRIPTS_DIR, 'sync.py'), 'push'],
+            capture_output=True,
+            text=True,
+            timeout=90
+        )
+        
+        if result.returncode == 0:
+            log("💾 Auto-saved to Supabase")
+            return True
+        else:
+            log(f"✗ Save failed: {result.stderr[:200]}")
+            return False
+    except subprocess.TimeoutExpired:
+        log("✗ Save timed out")
+        return False
+    except Exception as e:
+        log(f"✗ Save error: {e}")
+        return False
+    finally:
+        # Remove lock
+        if os.path.exists(SAVE_LOCK_FILE):
+            os.remove(SAVE_LOCK_FILE)
+
+
+def auto_save():
+    """Trigger save with rate limiting (30 second minimum between saves)."""
+    try:
+        now = time.time()
+        
+        # Rate limit: only save if 30+ seconds since last save
+        if os.path.exists(LAST_SAVE_FILE):
+            last = float(open(LAST_SAVE_FILE).read().strip() or 0)
+            if now - last < 30:
+                return
+        
+        do_save()
+        Path(LAST_SAVE_FILE).write_text(str(now))
+        
+    except Exception as e:
+        log(f"Auto-save error: {e}")
+
+
+def start_timer_save():
+    """Start a background thread that saves every 30 seconds."""
+    def timer_loop():
+        while True:
+            time.sleep(30)
+            auto_save()
+    
+    t = threading.Thread(target=timer_loop, daemon=True)
+    t.start()
+    log("⏱️ Timer save thread started (every 30 seconds)")
 
 
 def setup_auto_save():
@@ -84,68 +153,92 @@ def setup_auto_save():
     profile_dir = os.path.join(ipython_dir, 'profile_default')
     startup_dir = os.path.join(profile_dir, 'startup')
     
-    auto_save_script = f'''#!/usr/bin/env python3
-"""
-Auto-save hook - runs after each notebook execution
-"""
-
+    # The actual auto-save script that gets installed
+    auto_save_script = '''
 import os
 import sys
 import subprocess
-from datetime import datetime
+import time
+import threading
 from pathlib import Path
+
+SCRIPTS_DIR = '/workspace/scripts'
+if not os.path.exists(SCRIPTS_DIR) or not os.access(SCRIPTS_DIR, os.W_OK):
+    SCRIPTS_DIR = '/app/scripts'
+
+LAST_SAVE_FILE = '/tmp/last_save_time'
+SAVE_LOCK_FILE = '/tmp/save_in_progress'
+
+def do_save():
+    if os.path.exists(SAVE_LOCK_FILE):
+        return
+    try:
+        Path(SAVE_LOCK_FILE).touch()
+        result = subprocess.run(
+            [sys.executable, os.path.join(SCRIPTS_DIR, 'sync.py'), 'push'],
+            capture_output=True, timeout=90
+        )
+        if result.returncode == 0:
+            print("💾 Auto-saved", flush=True)
+        if os.path.exists(SAVE_LOCK_FILE):
+            os.remove(SAVE_LOCK_FILE)
+    except:
+        if os.path.exists(SAVE_LOCK_FILE):
+            os.remove(SAVE_LOCK_FILE)
 
 def auto_save():
     try:
-        # Only save every 5 minutes from the cell-run hook to avoid rate limits
-        save_file = '/tmp/last_auto_save'
-        now = datetime.now().timestamp()
-        
-        if os.path.exists(save_file):
-            last = os.path.getmtime(save_file)
-            if now - last < 300:  # 5 minutes
+        now = time.time()
+        if os.path.exists(LAST_SAVE_FILE):
+            last = float(open(LAST_SAVE_FILE).read().strip() or 0)
+            if now - last < 30:
                 return
-        
-        # Run sync push in background
-        subprocess.Popen([
-            sys.executable, '{SCRIPTS_DIR}/sync.py', 'push'
-        ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        
-        Path(save_file).touch()
-    except Exception:
+        do_save()
+        Path(LAST_SAVE_FILE).write_text(str(now))
+    except:
         pass
 
-# Register post-execute hook if IPython is available
+# Start timer save thread - saves every 30 seconds
+def timer_loop():
+    while True:
+        time.sleep(30)
+        auto_save()
+
+t = threading.Thread(target=timer_loop, daemon=True)
+t.start()
+
+# Register post-cell hook - saves after each cell execution
 try:
     from IPython import get_ipython
     ip = get_ipython()
     if ip:
         ip.events.register('post_run_cell', auto_save)
-except Exception:
+except:
     pass
 '''
     
     os.makedirs(startup_dir, exist_ok=True)
-    with open(os.path.join(startup_dir, 'auto_save.py'), 'w') as f:
+    with open(os.path.join(startup_dir, '00_auto_save.py'), 'w') as f:
         f.write(auto_save_script)
     
-    log("Auto-save cell-run hook installed")
+    log("✅ Auto-save system installed")
 
 
 def main():
-    log("Starting...")
+    log("🚀 Initializing Hermès...")
     ensure_dirs()
     
-    # Pull from Supabase
+    # ALWAYS pull on startup - this restores your files
     pull_from_supabase()
     
     # Install Hermes
     install_hermes()
     
-    # Setup auto-save
+    # Setup aggressive auto-save
     setup_auto_save()
+    start_timer_save()
     
-    log("✓ Ready! Your files are fully synced.")
+    log("✅ Ready! Auto-saving every 30 seconds.")
 
 
 if __name__ == '__main__':
