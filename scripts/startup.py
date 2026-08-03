@@ -76,10 +76,23 @@ def pull_from_supabase():
     try:
         sys.path.insert(0, SCRIPTS_DIR)
         import sync
+        
+        # Check credentials first
+        if not sync.SUPABASE_URL or not sync.SUPABASE_KEY:
+            log("❌ SUPABASE credentials not set! Cannot pull.")
+            log(f"   URL: {sync.SUPABASE_URL}")
+            log(f"   KEY: {'SET' if sync.SUPABASE_KEY else 'NOT SET'}")
+            return
+        
+        log(f"   Supabase URL: {sync.SUPABASE_URL[:40]}...")
+        log(f"   Bucket: {sync.BUCKET_NAME}")
+        
         sync.pull_files()
         log("✓ Files restored from Supabase.")
     except Exception as e:
         log(f"Pull error: {e}")
+        import traceback
+        log(f"Traceback: {traceback.format_exc()}")
 
 
 def do_save():
@@ -226,6 +239,9 @@ except:
 
 def main():
     log("🚀 Initializing Hermès...")
+    log(f"📁 Workspace: {WORKSPACE}")
+    log(f"📁 Notebooks: {NOTEBOOKS_DIR}")
+    log(f"📁 Scripts: {SCRIPTS_DIR}")
     ensure_dirs()
     
     # ALWAYS pull on startup - this restores your files
@@ -237,6 +253,14 @@ def main():
     # Setup aggressive auto-save
     setup_auto_save()
     start_timer_save()
+    
+    # Verify files are there
+    notebooks_files = os.listdir(NOTEBOOKS_DIR) if os.path.exists(NOTEBOOKS_DIR) else []
+    log(f"📂 Found {len(notebooks_files)} notebooks in workspace")
+    
+    if notebooks_files:
+        for f in notebooks_files[:5]:
+            log(f"   - {f}")
     
     log("✅ Ready! Auto-saving every 30 seconds.")
 
