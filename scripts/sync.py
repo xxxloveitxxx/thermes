@@ -216,12 +216,12 @@ def pull_files():
     
     pulled = 0
 
-    # Pull notebooks - restore to /workspace/notebooks AND /workspace root
-    logger.info(f"  Checking remote notebooks/ recursively...")
-    files = list_files_recursive(prefix='notebooks/')
+    # 1. Pull everything from workspace/ folder
+    logger.info(f"  Checking remote workspace/ recursively...")
+    files = list_files_recursive(prefix='workspace/')
     
     if files:
-        logger.info(f"    Found {len(files)} files in notebooks/")
+        logger.info(f"    Found {len(files)} files in workspace/")
         for f in files:
             full_path = f['full_path']
             filename = f['name']
@@ -230,56 +230,24 @@ def pull_files():
                 continue
             
             # Extract relative path
-            if full_path.startswith("notebooks/"):
-                rel_path = full_path[len("notebooks/"):]
+            if full_path.startswith("workspace/"):
+                rel_path = full_path[len("workspace/"):]
             else:
                 rel_path = full_path
 
-            # Save to /workspace/notebooks/
-            local_path = os.path.join(NOTEBOOKS_DIR, rel_path)
-            logger.info(f"    Downloading {full_path} -> {local_path}")
-            if download_file(full_path, local_path):
-                pulled += 1
-            
-            # Also save .ipynb files to /workspace/ root (where JupyterLab expects them)
-            if filename.endswith('.ipynb'):
-                local_path_root = os.path.join(WORKSPACE, rel_path)
-                if local_path_root != local_path:  # Don't duplicate if same path
-                    logger.info(f"    Also copying to {local_path_root}")
-                    download_file(full_path, local_path_root)
-
-    else:
-        logger.info(f"    No notebooks found in Supabase")
-
-    # Pull scripts
-    logger.info(f"  Checking remote scripts/ recursively...")
-    files = list_files_recursive(prefix='scripts/')
-    
-    if files:
-        for f in files:
-            full_path = f['full_path']
-            filename = f['name']
-            
-            if filename == '.emptyFolderPlaceholder' or filename.endswith('.emptyFolderPlaceholder'):
-                continue
-            
-            if full_path.startswith("scripts/"):
-                rel_path = full_path[len("scripts/"):]
-            else:
-                rel_path = full_path
-
-            local_path = os.path.join(SCRIPTS_DIR, rel_path)
+            local_path = os.path.join(WORKSPACE, rel_path)
             logger.info(f"    Downloading {full_path} -> {local_path}")
             if download_file(full_path, local_path):
                 pulled += 1
     else:
-        logger.info(f"    No scripts found in Supabase")
+        logger.info(f"    No workspace files found")
 
-    # Pull hermes
+    # 2. Pull hermes state & memory
     logger.info(f"  Checking remote hermes/ recursively...")
     files = list_files_recursive(prefix='hermes/')
     
     if files:
+        logger.info(f"    Found {len(files)} Hermes files")
         for f in files:
             full_path = f['full_path']
             filename = f['name']
@@ -297,7 +265,7 @@ def pull_files():
             if download_file(full_path, local_path):
                 pulled += 1
     else:
-        logger.info(f"    No hermes files found in Supabase")
+        logger.info(f"    No hermes files found")
 
     # Copy configuration file from hermes directory back to workspace
     sync_config_hermes_to_local()
@@ -313,7 +281,7 @@ def push_files():
     # Sync workspace config to hermes home before uploading so it gets backed up
     sync_config_local_to_hermes()
 
-    def upload_folder(local_dir, remote_folder, extensions=None):
+    def upload_folder(local_dir, remote_folder, extensions=None, exclude_dirs=None):
         """Upload all files from a folder recursively."""
         logger.info(f"  Checking {local_dir}...")
         
@@ -321,22 +289,19 @@ def push_files():
             logger.warning(f"  ❌ {local_dir} does not exist")
             return 0
         
-        # Count files first
-        all_files = []
-        for root, dirs, files in os.walk(local_dir):
-            for filename in files:
-                if extensions:
-                    if not any(filename.endswith(ext) for ext in extensions):
-                        continue
-                all_files.append(filename)
-        
-        logger.info(f"  Found {len(all_files)} files to upload")
-        if len(all_files) == 0:
-            logger.warning(f"  ⚠️  No files in {local_dir}")
+        if exclude_dirs is None:
+            exclude_dirs = ['__pycache__', '.git', 'node_modules']
         
         uploaded = 0
         for root, dirs, files in os.walk(local_dir):
+            # Skip excluded directories
+            dirs[:] = [d for d in dirs if d not in exclude_dirs]
+            
             for filename in files:
+                # Skip Python cache files
+                if filename.endswith('.pyc') or filename.startswith('.'):
+                    continue
+                
                 # If extensions filter specified, only upload matched files
                 if extensions:
                     if not any(filename.endswith(ext) for ext in extensions):
@@ -351,51 +316,17 @@ def push_files():
         
         return uploaded
     
-    def upload_ipynb_files(local_dir, remote_folder):
-        """Upload only .ipynb files from a directory."""
-        logger.info(f"  Scanning for .ipynb files in {local_dir}...")
-        
-        if not os.path.exists(local_dir):
-            logger.warning(f"  ❌ {local_dir} does not exist")
-            return 0
-        
-        uploaded = 0
-        for root, dirs, files in os.walk(local_dir):
-            for filename in files:
-                if filename.endswith('.ipynb'):
-                    local_path = os.path.join(root, filename)
-                    rel_path = os.path.relpath(local_path, local_dir)
-                    remote_name = f"{remote_folder}/{rel_path}"
-                    logger.info(f"    Uploading {remote_name}...")
-                    if upload_file(local_path, remote_name):
-                        uploaded += 1
-        
-        return uploaded
-    
-    # Upload notebooks - check BOTH /workspace/notebooks AND /workspace directly
-    logger.info("  Uploading notebooks from notebooks/ folder...")
-    n1 = upload_ipynb_files(NOTEBOOKS_DIR, 'notebooks')
-    logger.info(f"  ✅ Uploaded {n1} files from notebooks/")
-    
-    # Also upload .ipynb files from workspace root (where JupyterLab creates them by default)
-    logger.info("  Uploading notebooks from workspace root...")
-    n2 = upload_ipynb_files(WORKSPACE, 'notebooks')
-    logger.info(f"  ✅ Uploaded {n2} files from workspace root")
-    
-    # Total notebooks
-    total_notebooks = n1 + n2
-    logger.info(f"  📓 Total notebooks uploaded: {total_notebooks}")
+    # 1. Upload EVERYTHING from /workspace (user files, Hermes outputs, etc.)
+    logger.info("  Uploading ALL files from /workspace...")
+    workspace_uploaded = upload_folder(WORKSPACE, 'workspace')
+    logger.info(f"  ✅ Uploaded {workspace_uploaded} files from /workspace")
 
-    logger.info("  Uploading scripts...")
-    s = upload_folder(SCRIPTS_DIR, 'scripts')
-    logger.info(f"  ✅ Uploaded {s} files from scripts/")
-    
-    # Upload hermes config & state databases with specific important extensions
-    # This prevents uploading massive audio/image cache folders, while saving all configurations/states/memories.
-    hermes_extensions = ['.yaml', '.yml', '.json', '.md', '.txt', '.db', '.sqlite', '.env', '.update_check']
-    logger.info("  Uploading hermes config...")
-    h = upload_folder(HERMES_HOME, 'hermes', hermes_extensions)
-    logger.info(f"  ✅ Uploaded {h} files from ~/.hermes/")
+    # 2. Upload hermes state & memory (comprehensive)
+    logger.info("  Uploading Hermes state and memory...")
+    hermes_extensions = ['.yaml', '.yml', '.json', '.md', '.txt', '.db', '.sqlite', '.env', 
+                        '.update_check', '.memory', '.context', '.state']
+    hermes_uploaded = upload_folder(HERMES_HOME, 'hermes', hermes_extensions)
+    logger.info(f"  ✅ Uploaded {hermes_uploaded} files from ~/.hermes/")
     
     logger.info("✓ Push complete!")
 
